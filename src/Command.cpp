@@ -7,14 +7,33 @@ EditorAction NormalModeParser::Feed(KeyEvent key) {
     if (key.code_ == KeyCode::Escape) {
         return {};
     }
-
-
     if (key.code_ == KeyCode::Character) {
         auto value = key.value_;
         switch (value) {
-        //你需要填写这里
-        default:
-            break;
+            case 'h':{
+                return NormalModeParser::GenerateMotion(Motion::Left);
+            }
+            case 'j':{
+                return NormalModeParser::GenerateMotion(Motion::Down);
+            }
+            case 'k':{
+                return NormalModeParser::GenerateMotion(Motion::Up);
+            }
+            case 'l':{
+                return NormalModeParser::GenerateMotion(Motion::Right);
+            }
+            case 'i':{
+                return {ActionKind::InsertBefore};
+            }
+            case 'a':{
+                return {ActionKind::InsertAfter};
+            }
+            case ':':{
+                return NormalModeParser::GenerateCommand(ActionKind::EnterCommandLine);
+            }
+            default:{
+                return{ActionKind::None};
+            }
         }
         return {};
     }

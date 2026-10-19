@@ -14,7 +14,32 @@ namespace {
 std::string Trim(std::string value) {
     //去掉字符串两端的空白,保留中间的内容;全部是空白时返回空字符串
     //你可以分别从两端找到第一个非空白字符,注意反向迭代器转回正向迭代器时的边界
-    throw std::runtime_error("Not implemented.");
+    unsigned long lengthofvalue{value.size()};
+    if(lengthofvalue>=1){
+        std::string cutleftvalue{""};
+        char firstofvalue{value[0]};
+        if(firstofvalue==' '||firstofvalue=='\t'){
+            bool cut{true};
+            for(int i=0;i+1<=lengthofvalue;i++){
+                char iofvalue{value[i]};
+                if(iofvalue!=' '&&iofvalue!='\t'){
+                    cut=false;
+                }
+                if(cut==false){
+                    cutleftvalue+=iofvalue;
+                }
+            }
+        }
+        if(cutleftvalue.size()>=2){
+            while(cutleftvalue.size()>=1&&(cutleftvalue[cutleftvalue.size()-1]==' '||cutleftvalue[cutleftvalue.size()-1]=='\t')){
+                cutleftvalue.pop_back();
+            }
+        }
+        return cutleftvalue;
+    }
+    else{
+        return "";
+    }
 }
 
 //判断是否为ASCII可打印字符,Tab由插入模式另外处理
@@ -42,36 +67,76 @@ void Editor::RefreshScreen() {
     //2. 把当前模式、命令和提示打包成RenderState
     //3. 让Renderer生成一帧字符串,再交给Terminal输出
     //这里是你唯一需要调用Terminal中的接口的地方,请调用WriteOutput
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    window_.Resize(terminal_.GetScreenSize());
+    window_.EnsureCursorVisible(buffer_);
+    terminal_.WriteOutput(renderer_.Render(buffer_,window_,{mode_,command_,message_}));
 }
 
 void Editor::ProcessKey(KeyEvent key) {
     //1. (可选)先处理所有模式都能使用的Ctrl-Q,用于紧急退出
     //2. 按当前模式分发给命令行或插入模式的处理函数
     //3. Normal模式下清除旧提示,将按键交给parser,再执行生成的Action
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    if(key.IsCharacter('q')){
+        running_=false;
+        return;
+    }
+    EditorAction action;
+    switch(mode_){
+        case Mode::Normal:{
+            message_="";
+            Execute(normal_parser_.Feed(key));
+            break;
+        }
+        case Mode::Insert:{
+            HandleInsert(key);
+            break;
+        }
+        case Mode::CommandLine:{
+            HandleCommandLine(key);
+            break;
+        }
+        default:{
+            //mode_非法??????????????????????????????
+            break;
+        }
+    }
+    return;
 }
 
 void Editor::Execute(const EditorAction& action) {
     //根据Action的种类调用对应模块
     switch (action.kind_) {
-    case ActionKind::None:
-        return;
-    case ActionKind::Move:
-        //交给Window吧
-        return;
-    case ActionKind::InsertBefore:
-        //进入InsertMode,Editor自己就有对应方法
-        return;
-    case ActionKind::InsertAfter: {
-        //从当前Char之后进入InsertMode
-        //特判:如果Buffer表示当前Cursor所在的行是空的怎么办?
-        return;
-    }
-    case ActionKind::EnterCommandLine:
-        //进入Command Mode
-        //记得清空当前的message之类的遗留状态
-        return;
+        case ActionKind::None:{
+            return;
+        }
+        case ActionKind::Move:{
+            //交给Window吧
+            window_.ApplyMotion(buffer_,*action.motion_);
+            return;
+        }
+        case ActionKind::InsertBefore:{
+            //进入InsertMode,Editor自己就有对应方法
+            EnterInsert(window_.GetCursor());
+            return;
+        }
+        case ActionKind::InsertAfter:{
+            //从当前Char之后进入InsertMode
+            //特判:如果Buffer表示当前Cursor所在的行是空的怎么办?
+            EnterInsert({window_.GetCursor().row_,(window_.GetCursor().column_+1)});
+            return;
+        }  
+        case ActionKind::EnterCommandLine:{
+            mode_=Mode::CommandLine;
+            message_="";
+            command_="";
+            return;
+        }
+        default:{
+            //?????????
+            break;
+        }
     }
 }
 
@@ -83,16 +148,55 @@ void Editor::HandleInsert(KeyEvent key) {
     //3. Backspace删除前一个字符;若在行首且不是第一行,则与上一行合并
     //4. 可打印字符和Tab插入当前位置,光标向后移动一列
     //修改内容后记得同步Window中的光标,插入模式允许光标位于line.size()
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    Position cursorposition{window_.GetCursor()};
+    unsigned long rowofcursorposition{cursorposition.row_},columnofcursorposition{cursorposition.column_};
+    if(key.code_==KeyCode::Escape){
+        LeaveInsert();
+        return;
+    }
+    if(key.code_==KeyCode::Enter){
+        buffer_.SplitLine(rowofcursorposition,cursorposition.column_);
+        window_.SetCursor(buffer_,{rowofcursorposition+1,0},true);
+        return;
+    }
+    if(key.code_==KeyCode::Backspace){
+        if(columnofcursorposition>=1){
+            buffer_.EraseCharacter(rowofcursorposition,columnofcursorposition-1);
+            window_.SetCursor(buffer_,{rowofcursorposition,columnofcursorposition-1},true);
+        }
+        else if(rowofcursorposition>=1){
+            window_.SetCursor(buffer_,{rowofcursorposition-1,buffer_.GetLineAt(rowofcursorposition).size()*4},true);
+            buffer_.JoinLine(rowofcursorposition);
+        }
+    }
+    if(key.code_==KeyCode::Character&&IsPrintable(key.value_)){
+        buffer_.InsertCharacter(rowofcursorposition,columnofcursorposition,key.value_);
+        window_.SetCursor(buffer_,{rowofcursorposition,columnofcursorposition+1},true);
+        return;
+    }
+    if(key.code_==KeyCode::Character&&key.value_=='\t'){
+        buffer_.InsertCharacter(rowofcursorposition,columnofcursorposition,'\t');
+        window_.SetCursor(buffer_,{rowofcursorposition,columnofcursorposition+1},true);
+    }
 }
 void Editor::EnterInsert(Position position) {
     //切换到Insert模式,设置插入位置并清除旧提示;允许光标停在行尾字符之后
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    mode_=Mode::Insert;
+    message_="";
+    window_.SetCursor(buffer_,position,true);
 }
 
 void Editor::LeaveInsert() {
     //从插入位置回到Normal模式的字符位置:不在行首时先左移一列,再限制光标范围
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    mode_=Mode::Normal;
+    Position cursorposition=window_.GetCursor();
+    if(cursorposition.column_>=1){
+        cursorposition.column_--;
+    }
+    window_.SetCursor(buffer_,cursorposition,false);
 }
 
 
@@ -101,7 +205,24 @@ void Editor::HandleCommandLine(KeyEvent key) {
     //命令内容保存在command_中,不修改Buffer
     //Escape取消命令,Enter执行命令,Backspace/Delete删除末尾字符,可打印字符追加到末尾
     //注意空命令不能再删除字符
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    if(key.code_==KeyCode::Escape){
+        LeaveCommandLine();
+        return;
+    }
+    if(key.code_==KeyCode::Enter){
+        ExecuteCommandLine();
+        return;
+    }
+    if(key.code_==KeyCode::Backspace||key.code_==KeyCode::Delete){
+        if(command_.size()>=1){
+            command_.pop_back();
+        }
+        return;
+    }
+    if (key.code_==KeyCode::Character&&IsPrintable(key.value_)){
+        command_.push_back(key.value_);
+    }
 }
 
 void Editor::ExecuteCommandLine() {
@@ -109,12 +230,52 @@ void Editor::ExecuteCommandLine() {
     //2. 空命令直接返回,否则按第一个空格或Tab拆成命令名和参数
     //3. 在Basic部分中你会发现最后命令就一个命令名,直接根据要求的命令名执行
     //4. 无法识别的命令写入message_,供下一次刷新显示
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    std::string trimcommand_{Trim(command_)};
+    LeaveCommandLine();
+    unsigned long lengthoftrimcommand_{trimcommand_.size()};
+    if(lengthoftrimcommand_>=1){
+        std::string leftcommand_{""},rightcommand_{""};
+        unsigned i{0};
+        for(;i+1<=lengthoftrimcommand_;i++){
+            if(trimcommand_[i]==' '){
+                break;
+            }
+            leftcommand_+=trimcommand_[i];
+        }
+        i++;
+        for(;i+1<=lengthoftrimcommand_;i++){
+            rightcommand_+=trimcommand_[i];
+        }
+        if(leftcommand_=="wq"){
+            if(SaveBuffer(rightcommand_)==true){
+                running_=false;
+                return;
+            }
+            else{
+                //保存异常??????????????????????????????
+                return;
+            }
+        }
+        else if(leftcommand_=="q!"||leftcommand_=="quit!"){
+            running_=false;
+        }
+        else{
+            message_=trimcommand_;
+            //如何下次刷新??????????????????????????????
+        }
+        return;
+    }
+    else{
+        return;
+    }
 }
 
 void Editor::LeaveCommandLine() {
     //恢复Normal模式并清空正在输入的命令
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    mode_=Mode::Normal;
+    command_="";
 }
 
 
@@ -122,7 +283,22 @@ bool Editor::SaveBuffer(const std::filesystem::path& path) {
     //1. path为空时调用Save,否则调用SaveAs
     //2. 捕获保存时的异常,把错误写入message_并返回false
     //3. 成功后生成包含文件名和行数的提示,返回true,供wq判断是否可以退出
-    throw std::runtime_error("Not implemented.");
+    //throw std::runtime_error("Not implemented.");
+    try{
+        if(path.empty()){
+            buffer_.Save();
+        }
+        else{
+            buffer_.SaveAs(path);
+        }
+        unsigned long numberofrows{buffer_.GetLineCount()};
+        message_="\""+buffer_.GetDisplayName()+"\" "+std::to_string(numberofrows);
+        return true;
+    }
+    catch(std::exception e){
+        message_=e.what();
+        return false;
+    }
 }
 
 } // namespace sjtu

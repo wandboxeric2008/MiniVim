@@ -40,7 +40,13 @@ std::string Renderer::Render(const Buffer& buffer, const Window& window, const R
     frame += "\x1b[H";
 
     for (std::size_t screen_row = 0; screen_row < viewport.rows_; ++screen_row) {
-       //这里是提示2中的部分
+        //这里是提示2中的部分
+        if(screen_row+viewport.top_+1<=buffer.GetLineCount()){
+            AppendClearedLine(frame,ExpandForDisplay(buffer.GetLineAt(screen_row+viewport.top_)),width,true);
+        }
+        else{
+            AppendClearedLine(frame,"~",width,true);
+        }
     }
 
     std::string bottom;
@@ -68,6 +74,21 @@ std::string Renderer::Render(const Buffer& buffer, const Window& window, const R
 std::string Renderer::ExpandForDisplay(std::string_view line) {
     //从左到右扫描buffer中一整行的实际内容,并扩展到render应该输出的视图
     //你应该在Render中调用这个函数,并把函数返回的结果按照视口剪切用于Render的某些行
-    return {};
+    std::string expandrow{""};
+    unsigned long column{0};
+    for(unsigned long i=0;i+1<=line.size();i++){
+        char currentchar{line[i]};
+        unsigned long nextcolumn{NextScreenColumn(column,currentchar)};
+        if(currentchar=='\t'){
+            for(unsigned long i{1};i<=nextcolumn-column;i++){
+                expandrow+=" ";
+            }
+        }
+        else{
+            expandrow+=currentchar;
+        }
+        column=nextcolumn;
+    }
+    return expandrow;
 }
 } // namespace sjtu

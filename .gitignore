@@ -1,0 +1,16 @@
+# 编译产生的二进制、目标文件
+code
+MiniVim
+*.o
+*.out
+build/
+bin/
+
+# 临时测试输出文件
+test/myresult.txt
+*.log
+
+# 编辑器缓存
+.DS_Store
+.vscode/
+*.swp
