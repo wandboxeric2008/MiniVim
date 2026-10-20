@@ -132,7 +132,7 @@ void Buffer::InsertCharacter(std::size_t row, std::size_t column, char value) {
             unsigned long lengthofrowoflines_{rowoflines_.size()};
             if(column<=lengthofrowoflines_){
                 std::string newrow{""};
-                unsigned long afterinsert{0};
+                long long afterinsert{0};
                 for(unsigned long i{0};i<=lengthofrowoflines_;i++){
                     if(i!=column){
                         newrow+=rowoflines_[i+afterinsert];
@@ -215,37 +215,52 @@ void Buffer::SplitLine(std::size_t row, std::size_t column) {
     unsigned long numberofrowsoflines_{lines_.size()};
     if(numberofrowsoflines_>=1){
         if(row+1<=numberofrowsoflines_){
-            std::string rowoflines_{lines_[row]};
-            unsigned long lengthofrowoflines_{rowoflines_.size()};
-            if(column<=lengthofrowoflines_){
-                std::string newrow{""};
-                unsigned long i{0};
-                for(;i+1<=column;i++){
-                    newrow+=rowoflines_[i];
-                }
-                std::string insertthis{""};
-                for(;i+1<=numberofrowsoflines_;i++){
-                    insertthis+=rowoflines_[i];
-                }
-                lines_[row]=newrow;
-                std::vector<std::string> newdocument{};
-                unsigned long afterinsert{0};
-                for(unsigned long i{0};i<=numberofrowsoflines_;i++){
-                    if(i!=row+1){
-                        newdocument.push_back(lines_[i+afterinsert]);
-                    }
-                    else{
-                        newdocument.push_back(insertthis);
-                        afterinsert--;
-                    }
-                }
-                lines_=newdocument;
-                return;
+            std::string rowoflines_{lines_[row]},insertthis{""};
+            unsigned long lengthofrowoflines_{rowoflines_.size()},curcol{0},i{0},stop{0};
+            if(column==0){
+                insertthis=lines_[row];
+                lines_[row]="";
             }
             else{
-                //column超范围??????????????????????????????
-                return;
+                for(;i+1<=lengthofrowoflines_;i++){
+                    if(curcol<column){
+                        if(i==0){
+                            stop=0;
+                        }
+                        else if(i>stop){
+                            stop=i;
+                        }
+                    }
+                    if(rowoflines_[i]=='\t'){
+                        curcol=curcol+4-curcol%4;
+                    }
+                    else{
+                        curcol++;
+                    }
+                }
+                std::string newrow{""};
+                unsigned long j{0};
+                for(;j<=stop;j++){
+                    newrow+=rowoflines_[j];
+                }
+                for(;j+1<=lengthofrowoflines_;j++){
+                    insertthis+=rowoflines_[j];
+                }
+                lines_[row]=newrow;
             }
+            std::vector<std::string> newdocument{};
+            long long afterinsert{0};
+            for(unsigned long i{0};i<=numberofrowsoflines_;i++){
+                if(i!=row+1){
+                    newdocument.push_back(lines_[i+afterinsert]);
+                }
+                else{
+                    newdocument.push_back(insertthis);
+                    afterinsert--;
+                }
+            }
+            lines_=newdocument;
+            return;
         }
         else{
             //row超范围??????????????????????????????
@@ -311,9 +326,7 @@ void Buffer::WriteTo(const std::filesystem::path& path) const {
     if(numberofrowsoflines_>=1){
         for(unsigned long i{0};i+1<=numberofrowsoflines_;i++){
             setdocument<<lines_[i];
-            if(i+2<=numberofrowsoflines_){
-                setdocument<<"\n";
-            }
+            setdocument<<"\n";
         }
     }
     else{

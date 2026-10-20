@@ -31,34 +31,53 @@ void Window::ApplyMotion(const Buffer& buffer, Motion motion) {
     //2. 将行列限制在Normal模式的合法范围内(Buffer应始终至少有一行)
     //3. 调整视口,让移动后的光标可见(EnsureCursorVisible)
     //throw std::runtime_error("Not implemented.");
-    std::string rowofbuffer{buffer.GetLineAt(cursor_.row_)};
-    unsigned long lengthofrowofbuffer{rowofbuffer.size()},renderlengthofrowofbuffer{BufferColumnToRenderColumn(rowofbuffer,lengthofrowofbuffer-1)};
-    if(motion==Motion::Left&&cursor_.column_>=1){
-        cursor_.column_--;
-    }
-    else if(motion==Motion::Up&&cursor_.row_>=1){
-        cursor_.row_--;
-    }
-    else if(motion==Motion::Down&&cursor_.row_+2<=buffer.GetLineCount()){
-        cursor_.row_++;
-    }
-    else if(motion==Motion::Right&&lengthofrowofbuffer>=1&&cursor_.column_+1<=renderlengthofrowofbuffer){
-        cursor_.column_++;
-    }
-    else if(motion!=Motion::Right&&motion!=Motion::Down&&motion!=Motion::Left&&motion!=Motion::Up){
-        //motion不合法??????????????????????????????
-        return;
-    }
-    if(motion==Motion::Left||motion==Motion::Right){
+    if(motion==Motion::Left){
+        if(RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),cursor_.column_)>0){
+            cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),cursor_.column_)-1);
+        }
         desired_column_=cursor_.column_;
     }
-    else if((motion==Motion::Down||motion==Motion::Up)&&lengthofrowofbuffer>=1){
-        if(desired_column_<=renderlengthofrowofbuffer){
-            cursor_.column_=desired_column_;
+    else if(motion==Motion::Right){
+        if(buffer.GetLineAt(cursor_.row_).size()>0&&cursor_.column_<BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size()-1)){
+            cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),cursor_.column_)+1);
+        }
+        desired_column_=cursor_.column_;
+    }
+    else if(motion==Motion::Up){
+        if(cursor_.row_>0){
+            cursor_.row_--;
+        }
+        if(buffer.GetLineAt(cursor_.row_).size()>0){
+            if(desired_column_>BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size()-1)){
+                cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size()-1);
+            }
+            else{
+                cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),desired_column_));
+            }
         }
         else{
-            cursor_.column_=renderlengthofrowofbuffer;
+            cursor_.column_=0;
         }
+    }
+    else if(motion==Motion::Down){
+        if(cursor_.row_+1<buffer.GetLineCount()){
+            cursor_.row_++;
+        }
+        if(buffer.GetLineAt(cursor_.row_).size()>0){
+            if(desired_column_>BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size()-1)){
+                cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size()-1);
+            }
+            else{
+                cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),desired_column_));
+            }
+        }
+        else{
+            cursor_.column_=0;
+        }
+    }
+    else{
+        //motion非法??????????????????????????????
+        return;
     }
     EnsureCursorVisible(buffer);
     return;
@@ -101,7 +120,7 @@ void Window::SetCursor(const Buffer& buffer, Position position, bool allow_line_
     //3. 调整视口,保证光标可见
     //throw std::runtime_error("Not implemented.");
     unsigned long numberofrowsofbuffer{buffer.GetLineCount()};
-    if(position.row_+1<=numberofrowsofbuffer){
+    if(position.row_<numberofrowsofbuffer){
         cursor_.row_=position.row_;
     }
     else{
@@ -112,13 +131,13 @@ void Window::SetCursor(const Buffer& buffer, Position position, bool allow_line_
             cursor_.row_=0;
         }
     }
-    unsigned long maxofcolumn{BufferColumnToRenderColumn(buffer.GetLineAt(position.row_),buffer.GetLineAt(position.row_).size())};
+    unsigned long maxofcolumn{BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),buffer.GetLineAt(cursor_.row_).size())};
     if(maxofcolumn>=1){
         if(allow_line_end==false){
             maxofcolumn--;
         }
         if(position.column_<=maxofcolumn){
-            cursor_.column_=position.column_;
+            cursor_.column_=BufferColumnToRenderColumn(buffer.GetLineAt(cursor_.row_),RenderColumnToBufferColumn(buffer.GetLineAt(cursor_.row_),position.column_));
         }
         else{
             cursor_.column_=maxofcolumn;

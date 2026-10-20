@@ -42,7 +42,11 @@ std::string Renderer::Render(const Buffer& buffer, const Window& window, const R
     for (std::size_t screen_row = 0; screen_row < viewport.rows_; ++screen_row) {
         //这里是提示2中的部分
         if(screen_row+viewport.top_+1<=buffer.GetLineCount()){
-            AppendClearedLine(frame,ExpandForDisplay(buffer.GetLineAt(screen_row+viewport.top_)),width,true);
+            std::string originalrow{ExpandForDisplay(buffer.GetLineAt(screen_row+viewport.top_))},visiblerow{""};
+            for(unsigned long i=viewport.left_;i+1<=originalrow.size();i++){
+                visiblerow+=originalrow[i];
+            }
+            AppendClearedLine(frame,visiblerow,width,true);
         }
         else{
             AppendClearedLine(frame,"~",width,true);
@@ -60,10 +64,37 @@ std::string Renderer::Render(const Buffer& buffer, const Window& window, const R
     //AppendClearedLine(frame, bottom, width, false);
     //这里是提示3中的部分
     //我们只会在CommandMode的时候检查一下底部的命令内容,在NormalMode不会看底部,所以message你可以随意写
-
-    std::size_t cursor_row{0};
-    std::size_t cursor_column{0};
-
+    static const std::string empty{""};
+    if(state.mode_==Mode::CommandLine){
+        AppendClearedLine(frame,":"+state.command_,width,false);
+    }
+    else if(state.message_.size()>=1){
+        AppendClearedLine(frame,state.message_,width,false);
+    }
+    else if(state.mode_==Mode::Insert){
+        AppendClearedLine(frame,"-- INSERT --",width,false);
+    }
+    else if(state.mode_==Mode::Normal){
+        AppendClearedLine(frame,"-- NORMAL --",width,false);
+    }
+    else{
+        //mode非法??????????????????????????????
+        return empty;
+    }
+    std::size_t cursor_row{window.GetCursor().row_};
+    std::size_t cursor_column{window.GetCursor().column_};
+    if(state.mode_!=Mode::CommandLine){
+        if(cursor_row>=viewport.top_){
+            cursor_row=cursor_row+1-viewport.top_;
+        }
+        if(cursor_column>=viewport.left_){
+            cursor_column=cursor_column+1-viewport.left_;
+        }
+    }
+    else{
+        cursor_row=viewport.rows_+1;
+        cursor_column=BufferColumnToRenderColumn(state.command_,state.command_.size())+2;
+    }
     //计算cursor_row和cursor_column即可    
 
     frame += CursorSequence(cursor_row, cursor_column);
