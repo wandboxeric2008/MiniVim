@@ -325,7 +325,7 @@ void Editor::ExecuteCommandLine() {
         std::string leftcommand_{""},rightcommand_{""};
         unsigned i{0};
         for(;i+1<=lengthoftrimcommand_;i++){
-            if(trimcommand_[i]==' '){
+            if(trimcommand_[i]==' '||trimcommand_[i]=='\t'){
                 break;
             }
             leftcommand_+=trimcommand_[i];

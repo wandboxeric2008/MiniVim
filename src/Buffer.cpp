@@ -324,9 +324,14 @@ void Buffer::WriteTo(const std::filesystem::path& path) const {
     std::ofstream setdocument(path);
     unsigned long numberofrowsoflines_{lines_.size()};
     if(numberofrowsoflines_>=1){
-        for(unsigned long i{0};i+1<=numberofrowsoflines_;i++){
-            setdocument<<lines_[i];
-            setdocument<<"\n";
+        if(numberofrowsoflines_==1&&lines_[0].size()==0){
+            setdocument<<"";
+        }
+        else{
+            for(unsigned long i{0};i+1<=numberofrowsoflines_;i++){
+                setdocument<<lines_[i];
+                setdocument<<"\n";
+            }
         }
     }
     else{

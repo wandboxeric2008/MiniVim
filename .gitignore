@@ -14,3 +14,12 @@ test/myresult.txt
 .DS_Store
 .vscode/
 *.swp
+
+
+vtemu/
+save
+save1
+save2
+mydocument!
+code
+*.out
